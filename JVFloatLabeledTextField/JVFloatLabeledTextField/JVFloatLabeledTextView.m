@@ -47,6 +47,7 @@
 - (void)commonInit
 {
     self.startingTextContainerInsetTop = self.textContainerInset.top;
+    self.floatingLabelShouldLockToTop = YES;
     
     _placeholderLabel = [UILabel new];
     _placeholderLabel.font = self.font;
@@ -59,6 +60,7 @@
     
     _floatingLabel = [UILabel new];
     _floatingLabel.alpha = 0.0f;
+    _floatingLabel.backgroundColor = self.backgroundColor;
     [self addSubview:_floatingLabel];
 	
     // some basic default fonts/colors
@@ -105,6 +107,12 @@
     
     _floatingLabel.text = placeholder;
     [_floatingLabel sizeToFit];
+    if (self.floatingLabelShouldLockToTop) {
+        _floatingLabel.frame = CGRectMake(_floatingLabel.frame.origin.x,
+                                          _floatingLabel.frame.origin.y,
+                                          self.frame.size.width,
+                                          _floatingLabel.frame.size.height);
+    }
 }
 
 - (void)setPlaceholder:(NSString *)placeholder floatingTitle:(NSString *)floatingTitle
@@ -127,6 +135,7 @@
     _placeholderLabel.alpha = [self.text length] > 0 ? 0.0f : 1.0f;
     _placeholderLabel.frame = CGRectMake(textRect.origin.x, textRect.origin.y,
                                          _placeholderLabel.frame.size.width, _placeholderLabel.frame.size.height);
+    
     [self setLabelOriginForTextAlignment];
     
     if (self.floatingLabelFont) {
@@ -134,7 +143,7 @@
     }
     
     BOOL firstResponder = self.isFirstResponder;
-    _floatingLabel.textColor = (firstResponder && self.text && self.text.length > 0 ? self.getLabelActiveColor : self.floatingLabelTextColor);
+    _floatingLabel.textColor = (firstResponder && self.text && self.text.length > 0 ? self.labelActiveColor : self.floatingLabelTextColor);
     if (!self.text || 0 == [self.text length]) {
         [self hideFloatingLabel:firstResponder];
     }
@@ -143,7 +152,7 @@
     }
 }
 
-- (UIColor *)getLabelActiveColor
+- (UIColor *)labelActiveColor
 {
     if (_floatingLabelActiveTextColor) {
         return _floatingLabelActiveTextColor;
@@ -158,16 +167,21 @@
 {
     void (^showBlock)() = ^{
         _floatingLabel.alpha = 1.0f;
+        CGFloat top = _floatingLabelYPadding;
+        if (self.floatingLabelShouldLockToTop) {
+            top += self.contentOffset.y;
+        }
         _floatingLabel.frame = CGRectMake(_floatingLabel.frame.origin.x,
-                                          _floatingLabelYPadding,
+                                          top,
                                           _floatingLabel.frame.size.width,
                                           _floatingLabel.frame.size.height);
     };
     
-    if (animated || _animateEvenIfNotFirstResponder) {
+    if ((animated || _animateEvenIfNotFirstResponder)
+        && (!self.floatingLabelShouldLockToTop || _floatingLabel.alpha != 1.0f)) {
         [UIView animateWithDuration:_floatingLabelShowAnimationDuration
                               delay:0.0f
-                            options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionCurveEaseOut
+                            options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseOut
                          animations:showBlock
                          completion:nil];
     }
@@ -190,7 +204,7 @@
     if (animated || _animateEvenIfNotFirstResponder) {
         [UIView animateWithDuration:_floatingLabelHideAnimationDuration
                               delay:0.0f
-                            options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionCurveEaseIn
+                            options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseIn
                          animations:hideBlock
                          completion:nil];
     }
@@ -241,7 +255,7 @@
         rect.origin.y += self.textContainerInset.top;
     }
     
-    return rect;
+    return CGRectIntegral(rect);
 }
 
 - (void)setFloatingLabelFont:(UIFont *)floatingLabelFont
@@ -281,13 +295,28 @@
     [self layoutSubviews];
 }
 
+- (void)setPlaceholderTextColor:(UIColor *)placeholderTextColor
+{
+    _placeholderTextColor = placeholderTextColor;
+    _placeholderLabel.textColor = _placeholderTextColor;
+}
+
+- (void)setBackgroundColor:(UIColor *)backgroundColor
+{
+    [super setBackgroundColor:backgroundColor];
+    
+    if (self.floatingLabelShouldLockToTop) {
+        _floatingLabel.backgroundColor = self.backgroundColor;
+    }
+}
+
 #pragma mark - Accessibility
 
 - (NSString *)accessibilityLabel
 {
     NSString *accessibilityLabel;
-    if ([self.text isEqualToString:@""] == NO) {
-        accessibilityLabel = [NSString stringWithFormat:@"%@ %@",[self.floatingLabel accessibilityLabel],self.text];
+    if (![self.text isEqualToString:@""]) {
+        accessibilityLabel = [NSString stringWithFormat:@"%@ %@", [self.floatingLabel accessibilityLabel], self.text];
     } else {
         accessibilityLabel = [self.floatingLabel accessibilityLabel];
     }
